@@ -1,0 +1,110 @@
+name: VS Code Extension Release (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      release_mode:
+        type: string
+        required: true
+        default: first
+      bump:
+        type: string
+        required: true
+        default: patch
+      create_github_release:
+        type: boolean
+        required: true
+        default: true
+      node_version:
+        type: string
+        required: false
+        default: "22"
+    secrets:
+      VSCE_PAT:
+        required: true
+
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # needed for tags
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+
+      - name: Install, typecheck, and test
+        run: |
+          npm ci
+          npm run typecheck
+          npm run test
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # bump -> npm version patch/minor/major (creates commit + tag)
+      - name: Bump version (commit + tag)
+        if: ${{ inputs.release_mode == 'bump' }}
+        run: |
+          npm version "${{ inputs.bump }}" -m "chore(release): v%s"
+
+      # first -> tag current package.json version, no version bump
+      - name: Tag current version (no bump)
+        if: ${{ inputs.release_mode == 'first' }}
+        shell: bash
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          TAG="v$VER"
+          echo "Tagging current version: $TAG"
+          git rev-parse "$TAG" >/dev/null 2>&1 && { echo "Tag $TAG already exists"; exit 1; }
+          git tag "$TAG" -m "$TAG"
+
+      - name: Bundle and package VSIX
+        run: |
+          npm run bundle
+          npx @vscode/vsce package
+
+      - name: Get VSIX filename
+        id: vsix
+        shell: bash
+        run: |
+          VSIX="$(ls -1 *.vsix | head -n 1)"
+          test -n "$VSIX"
+          echo "vsix=$VSIX" >> "$GITHUB_OUTPUT"
+          echo "VSIX: $VSIX"
+
+      # Publish EXACT package that we just built/tested
+      - name: Publish to VS Code Marketplace
+        run: npx @vscode/vsce publish --packagePath "${{ steps.vsix.outputs.vsix }}"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      # Push commit + tag only AFTER publish succeeded
+      - name: Push commit + tags
+        run: |
+          git push origin HEAD
+          git push origin --tags
+
+      - name: Create GitHub Release (latest) + upload VSIX
+        if: ${{ inputs.create_github_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="$(git describe --tags --abbrev=0)"
+          gh release create "$TAG" \
+            --generate-notes \
+            --latest \
+            "${{ steps.vsix.outputs.vsix }}"

@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    rebase-strategy: "auto"  # Auto rebase PRs to ensure the branch is up to date
+    assignees:
+      - "aakashbasa"
+    commit-message:
+      prefix: "chore"  # Customize the commit message prefix
+    pull-request-branch-name:
+      separator: "_"  # Customize the branch name separator (default is '-')
+      
