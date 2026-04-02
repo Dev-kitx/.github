@@ -1,0 +1,175 @@
+# Reusable workflow — Publish a Python 🐍 package to PyPI
+#
+# USAGE
+# ──────────────────────────────────────────────────────────────────────────────
+# Call this from any repo that needs to publish to PyPI:
+#
+#   jobs:
+#     publish:
+#       uses: Dev-kitx/.github/.github/workflows/python-publish-pypi.yml@main
+#       with:
+#         package_name: my-package
+#         python_version: "3.12"          # optional, default: "3.11"
+#         test_command: make run-pytest   # optional, see default below
+#         build_command: python -m build  # optional, see default below
+#       secrets: inherit
+#
+# SETUP REQUIRED (one-time per project)
+# ──────────────────────────────────────────────────────────────────────────────
+# Uses PyPI Trusted Publishing (OIDC) — no API tokens needed.
+# Add a trusted publisher at https://pypi.org/manage/account/publishing/:
+#   publisher:   GitHub Actions
+#   owner:       <your-github-username-or-org>
+#   repository:  <repo-name>
+#   workflow:    publish.yml          ← the *caller* workflow filename
+#   environment: pypi                 ← must match `environment_name` input
+#
+# ROLLBACK / REVERT STRATEGY
+# ──────────────────────────────────────────────────────────────────────────────
+# PyPI does not allow re-uploading or deleting a released version. Options:
+#
+#   1. YANK  (preferred for bugs)
+#      Mark a version as bad — pip skips it for loose installs but pinned
+#      installs still resolve it. Reversible. Run the "Yank Release" workflow
+#      or visit https://pypi.org/manage/project/<package>/releases/.
+#
+#   2. PATCH RELEASE  (preferred for critical fixes)
+#      Fix the bug, cut a new patch release (e.g. 1.2.1), publish that.
+#      Optionally yank the bad version at the same time.
+
+name: Publish Python 🐍 distribution 📦 to PyPI (reusable)
+
+on:
+  workflow_call:
+    inputs:
+
+      # ── Required ──────────────────────────────────────────────────────────
+      package_name:
+        description: >
+          PyPI package name — used to build the environment URL
+          (https://pypi.org/p/<package_name>).
+        type: string
+        required: true
+
+      # ── Optional ──────────────────────────────────────────────────────────
+      python_version:
+        description: Python version used for testing and building.
+        type: string
+        required: false
+        default: "3.11"
+
+      test_command:
+        description: >
+          Shell command(s) that install dependencies and run the test suite.
+          The step fails (and blocks publishing) if the command exits non-zero.
+          Examples:
+            "pip install -e . pytest pytest-cov && python -m pytest tests/ --tb=short -q"
+            "make setup-env && make run-pytest"
+        type: string
+        required: false
+        default: >-
+          pip install -e ".[dev]" pytest pytest-cov &&
+          python -m pytest tests/ --tb=short -q
+
+      build_command:
+        description: >
+          Shell command(s) that produce distribution files under dist/.
+          Examples:
+            "pip install build && python -m build"
+            "pip install build && pyproject-build"
+        type: string
+        required: false
+        default: "pip install build && python -m build"
+
+      fetch_depth:
+        description: >
+          git checkout fetch-depth. Use 0 (full history) when your project
+          uses setuptools-scm or any tag-based versioning tool.
+        type: number
+        required: false
+        default: 0
+
+      environment_name:
+        description: GitHub deployment environment name.
+        type: string
+        required: false
+        default: pypi
+
+      artifact_retention_days:
+        description: Days to retain the dist artifact before GitHub deletes it.
+        type: number
+        required: false
+        default: 7
+
+jobs:
+  # ── 1. Run the full test suite — blocks the rest of the pipeline ──────────
+  test:
+    name: Tests (pre-publish gate)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch_depth }}
+
+      - name: Set up Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          cache: pip
+
+      - name: Run tests
+        run: ${{ inputs.test_command }}
+
+  # ── 2. Build sdist + wheel ────────────────────────────────────────────────
+  build:
+    name: Build distribution 📦
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch_depth }}
+
+      - name: Set up Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          cache: pip
+
+      - name: Build sdist and wheel
+        run: ${{ inputs.build_command }}
+
+      - name: Inspect built artefacts
+        run: ls -lh dist/
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: ${{ inputs.artifact_retention_days }}
+
+  # ── 3. Publish to PyPI via Trusted Publishing (OIDC) ─────────────────────
+  publish:
+    name: Publish → PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment_name }}
+      url: https://pypi.org/p/${{ inputs.package_name }}
+    # Trusted Publishing requires an OIDC token — granted only at this job level
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI (Trusted Publisher)
+        uses: pypa/gh-action-pypi-publish@release/v1
