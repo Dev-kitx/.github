@@ -1,0 +1,48 @@
+name: Run NPM tests with Vite
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version
+        type: string
+        default: "22"
+      codecov_slug:
+        description: Codecov slug (e.g., "owner/repo")
+        type: string
+        default: ""
+    secrets:
+      CODECOV_TOKEN:
+        description: Codecov token
+        required: true
+
+jobs:
+  ci:
+    name: Typecheck, Bundle & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Bundle
+        run: npm run bundle
+
+      - name: Test
+        run: npm run test:coverage
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: ${{ inputs.codecov_slug }}
