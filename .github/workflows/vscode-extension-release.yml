@@ -90,11 +90,3 @@ jobs:
           run: |
             gh release upload "${{ github.event.release.tag_name }}" \
               "${{ steps.vsix.outputs.vsix }}"
-  
-        - name: Commit version bump to main
-          if: github.event_name == 'release'
-          run: |
-            git add package.json
-            git diff --staged --quiet && exit 0
-            git commit -m "chore: bump package.json to ${{ github.event.release.tag_name }} [skip ci]"
-            git push origin HEAD:main
