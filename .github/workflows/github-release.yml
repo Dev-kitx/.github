@@ -26,32 +26,33 @@ name: Creates a GitHub Release and tags the release as latest (reusable)
 on:
   workflow_call:
     inputs:
-        auto_version:
-            type: boolean
-            description: >
-                Automatically determine the next version based on commit messages
-                (conventional commits). Set to false to manually specify the version
-                in the Release PR title (e.g. "Release v1.2.3").
-            required: false
-            default: true
-        auto_release:
-            type: boolean
-            description: >
-                Automatically publish the release after creating it.
-            required: true
-            default: false
-        generate_badge:
-            type: boolean
-            description: >
-                Generate a badge for the release.
-            required: false
-            default: true
-        bump_version_in_files:
-            type: string
-            description: >
-                Comma-separated list of file paths to update with the new version number.
-            required: false
-            default: ""
+      auto_version:
+        type: boolean
+        description: >
+            Automatically determine the next version based on commit messages
+            (conventional commits). Set to false to manually specify the version
+            in the Release PR title (e.g. "Release v1.2.3").
+        required: false
+        default: true
+      auto_release:
+        type: boolean
+        description: >
+          Automatically publish the release after creating it.
+        required: false
+        default: false
+      generate_badge:
+        type: boolean
+        description: >
+            Generate a badge for the release.
+        required: false
+        default: true
+      bump_version_in_files:
+        type: string
+        description: >
+            Comma-separated list of file paths to update with the new version number.
+        required: false
+        default: ""
+
 jobs:
   release:
     name: Release Please
