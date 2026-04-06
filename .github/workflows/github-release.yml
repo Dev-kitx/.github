@@ -1,0 +1,83 @@
+name: Creates a GitHub Release and tags the release as latest (reusable)
+
+
+# Watches commits pushed to main.
+# Maintains a "Release PR" that bumps the version in package.json
+# and auto-generates a CHANGELOG from conventional commit messages.
+#
+# When you merge the Release PR:
+#   - smart-gh-release creates the git tag and GitHub Release
+#   - That "release published" event triggers publish.yml automatically
+#
+# CONVENTIONAL COMMITS (determines version bump)
+# ───────────────────────────────────────────────
+#   feat: ...          → minor bump  (0.1.0 → 0.2.0)
+#   fix: ...           → patch bump  (0.1.0 → 0.1.1)
+#   feat!: ...         → major bump  (0.1.0 → 1.0.0)
+#   BREAKING CHANGE:   → major bump
+#   chore/docs/style   → no release PR update
+#
+# SETUP REQUIRED (one-time)
+# ──────────────────────────
+# Create a GitHub App and add to repo:
+#   vars.APP_ID      — the app's numeric ID
+#   secrets.PRIVATE_KEY — the app's private key (PEM)
+
+on:
+  workflow_call:
+    inputs:
+        auto_version:
+            type: boolean
+            description: >
+                Automatically determine the next version based on commit messages
+                (conventional commits). Set to false to manually specify the version
+                in the Release PR title (e.g. "Release v1.2.3").
+            required: false
+            default: true
+        auto_release:
+            type: boolean
+            description: >
+                Automatically publish the release after creating it.
+            required: true
+            default: false
+        generate_badge:
+            type: boolean
+            description: >
+                Generate a badge for the release.
+            required: false
+            default: true
+        bump_version_in_files:
+            type: string
+            description: >
+                Comma-separated list of file paths to update with the new version number.
+            required: false
+            default: ""
+jobs:
+  release:
+    name: Release Please
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate GitHub App token
+        uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.PRIVATE_KEY }}
+
+      - uses: Dev-kitx/smart-gh-release@v1
+        id: release
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          auto_version: ${{ inputs.auto_version }}
+          auto_release: ${{ inputs.auto_release }}
+          generate_badge: ${{ inputs.generate_badge }}
+          bump_version_in_files: |
+            ${{ inputs.bump_version_in_files }}  
+
+
+      - name: Summary
+        run: |
+          echo "Tag:  ${{ steps.release.outputs.tag_name }}"
+          echo "Bump: ${{ steps.release.outputs.bump_level }}"
+          echo "URL:  ${{ steps.release.outputs.release_url }}"
