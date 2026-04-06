@@ -1,0 +1,45 @@
+name: Lint Workflows
+
+on:
+  push:
+    paths:
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+
+jobs:
+  actionlint:
+    name: actionlint (Actions schema)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run actionlint
+        id: actionlint
+        uses: raven-actions/actionlint@v2
+        with:
+          files: ".github/workflows/*.yml"
+          shellcheck: true
+          cache: true
+
+      - name: actionlint summary
+        if: ${{ steps.actionlint.outputs.exit-code != 0 }}
+        run: |
+          echo "actionlint version : ${{ steps.actionlint.outputs.version-semver }}"
+          echo "exit code          : ${{ steps.actionlint.outputs.exit-code }}"
+          echo "total errors       : ${{ steps.actionlint.outputs.total-errors }}"
+          echo "total files checked: ${{ steps.actionlint.outputs.total-files }}"
+          exit ${{ steps.actionlint.outputs.exit-code }}
+
+  yamllint:
+    name: yamllint (YAML syntax)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run yamllint
+        uses: actionhippie/yamllint@v1
+        with:
+          path: .github/workflows/
+          strict: true
