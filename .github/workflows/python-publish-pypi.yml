@@ -113,7 +113,7 @@ jobs:
           fetch-depth: ${{ inputs.fetch_depth }}
 
       - name: Set up Python ${{ inputs.python_version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ inputs.python_version }}
           cache: pip
@@ -133,7 +133,7 @@ jobs:
           fetch-depth: ${{ inputs.fetch_depth }}
 
       - name: Set up Python ${{ inputs.python_version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ inputs.python_version }}
           cache: pip
