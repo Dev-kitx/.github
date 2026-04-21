@@ -1,0 +1,70 @@
+name: Run tests, linting, and type checks for python projects
+
+on:
+  workflow_call:
+    inputs:
+      python-versions:
+        description: 'JSON array of Python versions, e.g. ["3.11","3.12","3.13"]'
+        type: string
+        default: '["3.11", "3.12", "3.13"]'
+      coverage-python-version:
+        description: "Python version used to upload coverage"
+        type: string
+        default: "3.12"
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ inputs.coverage-python-version }}
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check src/ tests/
+
+      - name: Ruff format check
+        run: ruff format --check src/ tests/
+
+      - name: Mypy
+        run: mypy src/
+
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJson(inputs.python-versions) }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests with coverage
+        run: pytest
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == inputs.coverage-python-version
+        uses: codecov/codecov-action@v6
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
