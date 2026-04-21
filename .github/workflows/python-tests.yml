@@ -11,6 +11,10 @@ on:
         description: "Python version used to upload coverage"
         type: string
         default: "3.12"
+      codecov_slug:
+        description: Codecov slug (e.g., "owner/repo")
+        type: string
+        default: ""
     secrets:
       CODECOV_TOKEN:
         required: false
@@ -67,4 +71,5 @@ jobs:
         with:
           files: coverage.xml
           fail_ci_if_error: false
+          slug: ${{ inputs.codecov_slug }}
           token: ${{ secrets.CODECOV_TOKEN }}
